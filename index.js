@@ -56,12 +56,10 @@ function validarProfesor(body) {
    ENDPOINTS ALUMNOS
 ========================= */
 
-// GET todos
 app.get("/alumnos", (req, res) => {
   res.status(200).json(alumnos);
 });
 
-// GET por id
 app.get("/alumnos/:id", (req, res) => {
   const alumno = alumnos.find((a) => a.id == req.params.id);
   if (!alumno) return res.status(404).json({ error: "Alumno no encontrado" });
@@ -69,7 +67,6 @@ app.get("/alumnos/:id", (req, res) => {
   res.status(200).json(alumno);
 });
 
-// POST
 app.post("/alumnos", (req, res) => {
   const error = validarAlumno(req.body);
   if (error) return res.status(400).json({ error });
@@ -81,7 +78,6 @@ app.post("/alumnos", (req, res) => {
   res.status(201).json(req.body);
 });
 
-// PUT
 app.put("/alumnos/:id", (req, res) => {
   const index = alumnos.findIndex((a) => a.id == req.params.id);
   if (index === -1)
@@ -96,7 +92,6 @@ app.put("/alumnos/:id", (req, res) => {
   res.status(200).json(actualizado);
 });
 
-// DELETE
 app.delete("/alumnos/:id", (req, res) => {
   const index = alumnos.findIndex((a) => a.id == req.params.id);
   if (index === -1)
@@ -110,12 +105,10 @@ app.delete("/alumnos/:id", (req, res) => {
    ENDPOINTS PROFESORES
 ========================= */
 
-// GET todos
 app.get("/profesores", (req, res) => {
   res.status(200).json(profesores);
 });
 
-// GET por id
 app.get("/profesores/:id", (req, res) => {
   const profesor = profesores.find((p) => p.id == req.params.id);
   if (!profesor)
@@ -124,7 +117,6 @@ app.get("/profesores/:id", (req, res) => {
   res.status(200).json(profesor);
 });
 
-// POST
 app.post("/profesores", (req, res) => {
   const error = validarProfesor(req.body);
   if (error) return res.status(400).json({ error });
@@ -136,7 +128,6 @@ app.post("/profesores", (req, res) => {
   res.status(201).json(req.body);
 });
 
-// PUT
 app.put("/profesores/:id", (req, res) => {
   const index = profesores.findIndex((p) => p.id == req.params.id);
   if (index === -1)
@@ -151,7 +142,6 @@ app.put("/profesores/:id", (req, res) => {
   res.status(200).json(actualizado);
 });
 
-// DELETE
 app.delete("/profesores/:id", (req, res) => {
   const index = profesores.findIndex((p) => p.id == req.params.id);
   if (index === -1)
@@ -162,9 +152,37 @@ app.delete("/profesores/:id", (req, res) => {
 });
 
 /* =========================
-   INICIAR SERVIDOR
+   CONTROL DE MÉTODOS
+========================= */
+
+app.all("/alumnos", (req, res) => {
+  res.status(405).json({ error: "Método no permitido" });
+});
+
+app.all("/alumnos/:id", (req, res) => {
+  res.status(405).json({ error: "Método no permitido" });
+});
+
+app.all("/profesores", (req, res) => {
+  res.status(405).json({ error: "Método no permitido" });
+});
+
+app.all("/profesores/:id", (req, res) => {
+  res.status(405).json({ error: "Método no permitido" });
+});
+
+/* =========================
+   RUTA NO ENCONTRADA
+========================= */
+
+app.use((req, res) => {
+  res.status(404).json({ error: "Ruta no encontrada" });
+});
+
+/* =========================
+   SERVIDOR
 ========================= */
 
 app.listen(PORT, () => {
-  console.log(`Servidor corriendo en http://localhost:${PORT}`);
+  console.log(`Servidor corriendo en puerto ${PORT}`);
 });
