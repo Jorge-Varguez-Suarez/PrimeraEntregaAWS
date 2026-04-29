@@ -1,6 +1,5 @@
 const { Sequelize, DataTypes } = require("sequelize");
 
-// Configuración de la conexión a RDS
 const sequelize = new Sequelize("escuela", "admin", "JOva9718", {
   host: "db-api.cxegikuaahxv.us-east-1.rds.amazonaws.com",
   dialect: "mysql",
@@ -8,17 +7,36 @@ const sequelize = new Sequelize("escuela", "admin", "JOva9718", {
   logging: false,
 });
 
-// Definición de Modelos directamente aquí para simplicidad
 const Alumno = sequelize.define(
   "Alumno",
   {
     id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-    nombres: { type: DataTypes.STRING, allowNull: false },
-    apellidos: { type: DataTypes.STRING, allowNull: false },
-    matricula: { type: DataTypes.STRING, allowNull: false },
-    promedio: { type: DataTypes.FLOAT, allowNull: false },
+    nombres: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: { notEmpty: true },
+    },
+    apellidos: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: { notEmpty: true },
+    },
+    matricula: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: { notEmpty: true },
+    },
+    promedio: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+      validate: { min: 0, max: 100 }, // Evita promedios negativos que rompen el test
+    },
     fotoPerfilUrl: { type: DataTypes.TEXT, allowNull: true },
-    password: { type: DataTypes.STRING, allowNull: false },
+    password: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: { notEmpty: true },
+    },
   },
   { timestamps: false },
 );
@@ -27,10 +45,26 @@ const Profesor = sequelize.define(
   "Profesor",
   {
     id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-    numeroEmpleado: { type: DataTypes.INTEGER, allowNull: false },
-    nombres: { type: DataTypes.STRING, allowNull: false },
-    apellidos: { type: DataTypes.STRING, allowNull: false },
-    horasClase: { type: DataTypes.INTEGER, allowNull: false },
+    numeroEmpleado: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      validate: { min: 1 },
+    },
+    nombres: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: { notEmpty: true },
+    },
+    apellidos: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: { notEmpty: true },
+    },
+    horasClase: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      validate: { min: 0 },
+    },
   },
   { timestamps: false },
 );
