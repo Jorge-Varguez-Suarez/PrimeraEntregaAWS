@@ -29,7 +29,7 @@ const Alumno = sequelize.define(
     promedio: {
       type: DataTypes.FLOAT,
       allowNull: false,
-      validate: { min: 0, max: 100 }, // Evita promedios negativos que rompen el test
+      validate: { min: 0, max: 100 },
     },
     fotoPerfilUrl: { type: DataTypes.TEXT, allowNull: true },
     password: {

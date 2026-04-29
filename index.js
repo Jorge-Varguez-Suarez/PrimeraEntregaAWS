@@ -9,11 +9,11 @@ app.use(express.json());
 const PORT = 80;
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Configuración AWS
+// Configuración de AWS: ¡Actualiza estas claves antes de correr el servidor!
 AWS.config.update({
-  accessKeyId: "ASIAR34N4Q445CRQJIQG",
-  secretAccessKey: "0fNVRfhRIUzouDY/o73zWiF/LLrRuUHli16sFgfb",
-  sessionToken: "TU_TOKEN_ACTUALIZADO", // RECUERDA ACTUALIZAR ESTO SIEMPRE
+  accessKeyId: "PEGAR_NUEVA_ACCESS_KEY_AQUI",
+  secretAccessKey: "PEGAR_NUEVA_SECRET_KEY_AQUI",
+  sessionToken: "PEGAR_NUEVO_TOKEN_AQUI",
   region: "us-east-1",
 });
 
@@ -21,155 +21,244 @@ const s3 = new AWS.S3();
 const sns = new AWS.SNS();
 const dynamo = new AWS.DynamoDB.DocumentClient();
 
-sequelize.sync();
+sequelize.sync().then(() => console.log("Base de datos sincronizada."));
 
-/* =========================
-   MIDDLEWARE VALIDACIÓN
-========================= */
-// Captura errores de Sequelize para enviar 400 en lugar de 500
-const handleValidation = (err, res) => {
+// Manejador central para enviar mensajes de error claros cuando los datos son inválidos
+const manejarErroresDeValidacion = (err, res) => {
   if (
     err.name === "SequelizeValidationError" ||
     err.name === "SequelizeUniqueConstraintError"
   ) {
     return res
       .status(400)
-      .json({
-        error: "Datos inválidos",
-        detalles: err.errors.map((e) => e.message),
-      });
+      .json({ error: "La información proporcionada no es correcta." });
   }
   return res.status(500).json({ error: err.message });
 };
 
-/* =========================
-   ENDPOINTS ALUMNOS
-========================= */
+// Respuestas para métodos no permitidos (Soluciona el error 405)
+const noPermitido = (req, res) =>
+  res.status(405).json({ error: "Acción no permitida." });
+app.put("/alumnos", noPermitido);
+app.delete("/alumnos", noPermitido);
+app.put("/profesores", noPermitido);
+app.delete("/profesores", noPermitido);
+
+/* ==========================================
+   ALUMNOS
+========================================== */
 app.get("/alumnos", async (req, res) => {
-  const lista = await Alumno.findAll();
-  res.status(200).json(lista);
+  res.status(200).json(await Alumno.findAll());
 });
 
 app.get("/alumnos/:id", async (req, res) => {
   const alumno = await Alumno.findByPk(req.params.id);
-  if (!alumno) return res.status(404).json({ error: "No existe" });
+  if (!alumno) return res.status(404).json({ error: "El alumno no existe." });
   res.status(200).json(alumno);
 });
 
 app.post("/alumnos", async (req, res) => {
   try {
-    const nuevo = await Alumno.create(req.body);
-    res.status(201).json(nuevo);
+    const nuevoAlumno = await Alumno.create(req.body);
+    res.status(201).json(nuevoAlumno);
   } catch (err) {
-    handleValidation(err, res);
+    manejarErroresDeValidacion(err, res);
   }
 });
 
 app.put("/alumnos/:id", async (req, res) => {
   try {
     const alumno = await Alumno.findByPk(req.params.id);
-    if (!alumno) return res.status(404).json({ error: "No existe" });
+    if (!alumno) return res.status(404).json({ error: "El alumno no existe." });
     await alumno.update(req.body);
     res.status(200).json(alumno);
   } catch (err) {
-    handleValidation(err, res);
+    manejarErroresDeValidacion(err, res);
   }
 });
 
 app.delete("/alumnos/:id", async (req, res) => {
   const alumno = await Alumno.findByPk(req.params.id);
-  if (!alumno) return res.status(404).json({ error: "No existe" });
+  if (!alumno) return res.status(404).json({ error: "El alumno no existe." });
   await alumno.destroy();
-  res.status(200).json({ mensaje: "Eliminado" });
+  res.status(200).json({ mensaje: "Alumno borrado exitosamente." });
 });
 
-// Endpoint especial para el 405 (Method Not Allowed) en la raíz
-app.delete("/alumnos", (req, res) =>
-  res.status(405).json({ error: "No permitido" }),
-);
-
-/* =========================
-   ENDPOINTS PROFESORES
-========================= */
+/* ==========================================
+   PROFESORES
+========================================== */
 app.get("/profesores", async (req, res) => {
   res.status(200).json(await Profesor.findAll());
 });
 
 app.get("/profesores/:id", async (req, res) => {
-  const p = await Profesor.findByPk(req.params.id);
-  p ? res.status(200).json(p) : res.status(404).json({ error: "No existe" });
+  const profesor = await Profesor.findByPk(req.params.id);
+  if (!profesor)
+    return res.status(404).json({ error: "El profesor no existe." });
+  res.status(200).json(profesor);
 });
 
 app.post("/profesores", async (req, res) => {
   try {
-    const nuevo = await Profesor.create(req.body);
-    res.status(201).json(nuevo);
+    const nuevoProfesor = await Profesor.create(req.body);
+    res.status(201).json(nuevoProfesor);
   } catch (err) {
-    handleValidation(err, res);
+    manejarErroresDeValidacion(err, res);
+  }
+});
+
+app.put("/profesores/:id", async (req, res) => {
+  try {
+    const profesor = await Profesor.findByPk(req.params.id);
+    if (!profesor)
+      return res.status(404).json({ error: "El profesor no existe." });
+    await profesor.update(req.body);
+    res.status(200).json(profesor);
+  } catch (err) {
+    manejarErroresDeValidacion(err, res);
   }
 });
 
 app.delete("/profesores/:id", async (req, res) => {
-  const p = await Profesor.findByPk(req.params.id);
-  if (!p) return res.status(404).json({ error: "No existe" });
-  await p.destroy();
-  res.status(200).json({ mensaje: "Eliminado" });
+  const profesor = await Profesor.findByPk(req.params.id);
+  if (!profesor)
+    return res.status(404).json({ error: "El profesor no existe." });
+  await profesor.destroy();
+  res.status(200).json({ mensaje: "Profesor borrado exitosamente." });
 });
 
-/* =========================
-   S3 / SNS / DYNAMO
-========================= */
-
+/* ==========================================
+   S3 (Fotos de Perfil) y SNS (Correos)
+========================================== */
 app.post("/alumnos/:id/fotoPerfil", upload.single("foto"), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: "Falta la foto" });
+    if (!req.file)
+      return res.status(400).json({ error: "Es necesario adjuntar una foto." });
     const alumno = await Alumno.findByPk(req.params.id);
-    if (!alumno) return res.status(404).json({ error: "No existe" });
+    if (!alumno) return res.status(404).json({ error: "El alumno no existe." });
 
     const params = {
       Bucket: "uady-varguez-fotos-2026",
-      Key: `foto-${alumno.id}.jpg`,
+      Key: `foto-${alumno.id}-${Date.now()}.jpg`,
       Body: req.file.buffer,
       ContentType: req.file.mimetype,
-      ACL: "public-read", // Asegura que la URL sea accesible
+      ACL: "public-read",
     };
 
-    const result = await s3.upload(params).promise();
-    await alumno.update({ fotoPerfilUrl: result.Location });
-    res.status(200).json({ fotoPerfilUrl: result.Location });
+    const resultado = await s3.upload(params).promise();
+    await alumno.update({ fotoPerfilUrl: resultado.Location });
+    res.status(200).json({ fotoPerfilUrl: resultado.Location });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+app.post("/alumnos/:id/email", async (req, res) => {
+  try {
+    const alumno = await Alumno.findByPk(req.params.id);
+    if (!alumno) return res.status(404).json({ error: "El alumno no existe." });
+
+    const mensaje = `Calificaciones de ${alumno.nombres} ${alumno.apellidos}: ${alumno.promedio}`;
+    await sns
+      .publish({
+        Message: mensaje,
+        TopicArn: "arn:aws:sns:us-east-1:128609716025:topic-api",
+      })
+      .promise();
+
+    res.status(200).json({ mensaje: "Notificación enviada correctamente." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ==========================================
+   DYNAMODB (Sesiones)
+========================================== */
 app.post("/alumnos/:id/session/login", async (req, res) => {
   try {
     const alumno = await Alumno.findByPk(req.params.id);
     if (!alumno || alumno.password !== req.body.password) {
-      return res.status(400).json({ error: "Login fallido" });
+      return res
+        .status(400)
+        .json({ error: "Las credenciales no son válidas." });
     }
 
-    const sessionItem = {
+    const nuevaSesion = {
       id: crypto.randomUUID(),
       alumnoId: alumno.id,
       active: true,
-      // IMPORTANTE: 64 bytes hex = 128 caracteres exactos para pasar el test
       sessionString: crypto.randomBytes(64).toString("hex"),
       fecha: Math.floor(Date.now() / 1000),
     };
 
     await dynamo
-      .put({ TableName: "sesiones-alumnos", Item: sessionItem })
+      .put({ TableName: "sesiones-alumnos", Item: nuevaSesion })
       .promise();
-    res.status(200).json({ sessionString: sessionItem.sessionString });
+    res.status(200).json({ sessionString: nuevaSesion.sessionString });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// El resto de los métodos de sesión (verify/logout) se mantienen
-// pero asegúrate de que el logout use el ID de la sesión para el UPDATE.
+app.post("/alumnos/:id/session/verify", async (req, res) => {
+  try {
+    const { sessionString } = req.body;
+    const resultado = await dynamo
+      .scan({
+        TableName: "sesiones-alumnos",
+        FilterExpression: "sessionString = :ss AND active = :act",
+        ExpressionAttributeValues: { ":ss": sessionString, ":act": true },
+      })
+      .promise();
 
-app.use((req, res) => res.status(404).json({ error: "Ruta no encontrada" }));
+    if (resultado.Items.length > 0) {
+      res.status(200).json({ mensaje: "La sesión es válida." });
+    } else {
+      res.status(400).json({ error: "La sesión no existe o ya caducó." });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-app.listen(PORT, () => console.log("Servidor Fase Final con Validaciones"));
+app.post("/alumnos/:id/session/logout", async (req, res) => {
+  try {
+    const { sessionString } = req.body;
+    const resultado = await dynamo
+      .scan({
+        TableName: "sesiones-alumnos",
+        FilterExpression: "sessionString = :ss",
+        ExpressionAttributeValues: { ":ss": sessionString },
+      })
+      .promise();
+
+    if (resultado.Items.length > 0) {
+      const sessionId = resultado.Items[0].id;
+      await dynamo
+        .update({
+          TableName: "sesiones-alumnos",
+          Key: { id: sessionId },
+          UpdateExpression: "set active = :act",
+          ExpressionAttributeValues: { ":act": false },
+        })
+        .promise();
+      res.status(200).json({ mensaje: "La sesión se ha cerrado." });
+    } else {
+      res.status(404).json({ error: "No se encontró la sesión." });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Camino final por si buscan algo que no existe
+app.use((req, res) =>
+  res
+    .status(404)
+    .json({ error: "La dirección ingresada no existe en el sistema." }),
+);
+
+app.listen(PORT, () =>
+  console.log("Servidor iniciado y listo para recibir peticiones."),
+);
