@@ -1,6 +1,7 @@
 const { Sequelize, DataTypes } = require("sequelize");
 
 const sequelize = new Sequelize("escuela", "admin", "JOva9718", {
+  // Asegúrate de que este sea el endpoint de tu instancia RDS en la consola de AWS
   host: "db-api.cxegikuaahxv.us-east-1.rds.amazonaws.com",
   dialect: "mysql",
   port: 3306,
