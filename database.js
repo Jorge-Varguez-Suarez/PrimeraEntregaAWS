@@ -2,7 +2,7 @@ const { Sequelize, DataTypes } = require("sequelize");
 
 // Configuración de la conexión a RDS
 const sequelize = new Sequelize("escuela", "admin", "JOva9718", {
-  host: "TU_ENDPOINT_DE_RDS.amazonaws.com",
+  host: "db-api.cxegikuaahxv.us-east-1.rds.amazonaws.com",
   dialect: "mysql",
   port: 3306,
   logging: false,
