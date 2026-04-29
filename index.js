@@ -1,188 +1,146 @@
 const express = require("express");
+const AWS = require("aws-sdk");
+const multer = require("multer");
+const crypto = require("crypto"); // Para generar el UUID y sessionString
+const { sequelize, Alumno, Profesor } = require("./database");
 const app = express();
 
 app.use(express.json());
-
 const PORT = 80;
+const upload = multer({ storage: multer.memoryStorage() });
 
-// Arrays en memoria
-let alumnos = [];
-let profesores = [];
-
-/* =========================
-   VALIDACIONES
-========================= */
-
-function validarAlumno(body) {
-  const { id, nombres, apellidos, matricula, promedio } = body;
-
-  if (id == null || !nombres || !apellidos || !matricula || promedio == null) {
-    return "Campos incompletos";
-  }
-
-  if (typeof id !== "number") return "id debe ser número";
-  if (typeof nombres !== "string") return "nombres debe ser texto";
-  if (typeof apellidos !== "string") return "apellidos debe ser texto";
-  if (typeof matricula !== "string") return "matricula debe ser texto";
-  if (typeof promedio !== "number") return "promedio debe ser número";
-
-  return null;
-}
-
-function validarProfesor(body) {
-  const { id, numeroEmpleado, nombres, apellidos, horasClase } = body;
-
-  if (
-    id == null ||
-    numeroEmpleado == null ||
-    !nombres ||
-    !apellidos ||
-    horasClase == null
-  ) {
-    return "Campos incompletos";
-  }
-
-  if (typeof id !== "number") return "id debe ser número";
-  if (typeof numeroEmpleado !== "number")
-    return "numeroEmpleado debe ser número";
-  if (typeof nombres !== "string") return "nombres debe ser texto";
-  if (typeof apellidos !== "string") return "apellidos debe ser texto";
-  if (typeof horasClase !== "number") return "horasClase debe ser número";
-
-  return null;
-}
-
-/* =========================
-   ENDPOINTS ALUMNOS
-========================= */
-
-app.get("/alumnos", (req, res) => {
-  res.status(200).json(alumnos);
+AWS.config.update({
+  accessKeyId: "ASIAR34N4Q445CRQJIQG",
+  secretAccessKey: "0fNVRfhRIUzouDY/o73zWiF/LLrRuUHli16sFgfb",
+  sessionToken: "IQoJb3JpZ2luX2VjECMaCXVzLWdlc3QtMiJIMEYCIQDzHnm4gAm30Sz/smRcikK19hgZIzpodc+c+1UddFH0rAIhAK0R5xGu5/BroBgt+yQvMfWcqzNwzXwOvWhkc5MqK+e/KsECCOz//////////wEQABoMMTI4NjA5NzE2MDI1IgxwWqm+zTFaS3s4xCEqlQL4KSmRevOZeVwzUZ/t3ovuKFqLUJMsL4JfDRyOT3vea/aHpoOqvOe+Z/bNlRSzr9nFETJzFZpWY75b0q9ASYp4+REyZEAj2uXioZQwxzeRXPOo0ZOkL6+dNwNTXly6EIP3rqVPauyDp7vwPwzPXfzaalxVh+4PKoNm2a6hKa+/VEHSlBu9DNqzRA/RRYuB9XEzl+t/8c0qaRr0lSP5tUI2rQm9WoqAGiAeeW2ho0FmBBHeV52fDqTuF6M+isNvHJTRFMDxHIRYkqxQdhxzYT4o72TnA+ho6pFrYz+KnaFOkGiSKna3sbI8bNO3i3HlvHyzlmM6e/X74/QddltPk9WIHhz4224pYXs7jkx4PAnU/DBsoVbPMPjvxc8GOpwBo0ksHpjkl4J/9D8by4GO/uJPGInqcmJMYhJi1PMPzO4RR3fdwALg7KxJBjufoJWcPxG750jG7xqA5k5F9aihxHbRKCshDsMh2tDj94veya62RgJL2S/qKroWhm2bF7uaDrXnTHI77HyzXUDK31gB28OdyskjLB52GSJnQnIFTY/W+PRekC9MLiSyGt0lkLKDvwCX4MufUHrymQrh",
+  region: "us-east-1"
 });
 
-app.get("/alumnos/:id", (req, res) => {
-  const alumno = alumnos.find((a) => a.id == req.params.id);
-  if (!alumno) return res.status(404).json({ error: "Alumno no encontrado" });
+const s3 = new AWS.S3();
+const sns = new AWS.SNS();
+const dynamo = new AWS.DynamoDB.DocumentClient(); 
 
+sequelize.sync()
+  .then(() => console.log("Conectado a RDS exitosamente"))
+  .catch(err => console.log("Error de conexión RDS:", err));
+
+/* =========================
+   ENDPOINTS ALUMNOS (RDS)
+========================= */
+app.get("/alumnos", async (req, res) => {
+  const lista = await Alumno.findAll();[cite: 1]
+  res.status(200).json(lista);
+});
+
+app.get("/alumnos/:id", async (req, res) => {
+  const alumno = await Alumno.findByPk(req.params.id);[cite: 1]
+  if (!alumno) return res.status(404).json({ error: "Alumno no encontrado" });
   res.status(200).json(alumno);
 });
 
-app.post("/alumnos", (req, res) => {
-  const error = validarAlumno(req.body);
-  if (error) return res.status(400).json({ error });
-
-  const existe = alumnos.find((a) => a.id === req.body.id);
-  if (existe) return res.status(400).json({ error: "ID ya existe" });
-
-  alumnos.push(req.body);
-  res.status(201).json(req.body);
+app.post("/alumnos", async (req, res) => {
+  const nuevo = await Alumno.create(req.body);[cite: 1]
+  res.status(201).json(nuevo);
 });
 
-app.put("/alumnos/:id", (req, res) => {
-  const index = alumnos.findIndex((a) => a.id == req.params.id);
-  if (index === -1)
-    return res.status(404).json({ error: "Alumno no encontrado" });
-
-  const actualizado = { ...alumnos[index], ...req.body };
-
-  const error = validarAlumno(actualizado);
-  if (error) return res.status(400).json({ error });
-
-  alumnos[index] = actualizado;
-  res.status(200).json(actualizado);
+/* ==========================================
+   S3 y SNS
+   ========================================== */
+app.post("/alumnos/:id/fotoPerfil", upload.single('foto'), async (req, res) => {
+  try {
+    const alumno = await Alumno.findByPk(req.params.id);[cite: 1]
+    const params = {
+      Bucket: "uady-varguez-fotos-2026", 
+      Key: `foto-${req.params.id}-${Date.now()}`, 
+      Body: req.file.buffer,
+      ACL: 'public-read',
+      ContentType: req.file.mimetype
+    };
+    const uploadResult = await s3.upload(params).promise();[cite: 1]
+    await alumno.update({ fotoPerfilUrl: uploadResult.Location });[cite: 1]
+    res.status(200).json({ mensaje: "Foto subida", url: uploadResult.Location });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete("/alumnos/:id", (req, res) => {
-  const index = alumnos.findIndex((a) => a.id == req.params.id);
-  if (index === -1)
-    return res.status(404).json({ error: "Alumno no encontrado" });
-
-  alumnos.splice(index, 1);
-  res.status(200).json({ mensaje: "Alumno eliminado" });
+app.post("/alumnos/:id/email", async (req, res) => {
+  try {
+    const alumno = await Alumno.findByPk(req.params.id);[cite: 1]
+    const mensaje = `Calificaciones de ${alumno.nombres} ${alumno.apellidos}: ${alumno.promedio}`;
+    await sns.publish({ Message: mensaje, TopicArn: "arn:aws:sns:us-east-1:128609716025:topic-api" }).promise();[cite: 1]
+    res.status(200).json({ mensaje: "Notificación enviada" });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-/* =========================
-   ENDPOINTS PROFESORES
-========================= */
+/* ==========================================
+   (DYNAMODB)
+   ========================================== */
 
-app.get("/profesores", (req, res) => {
-  res.status(200).json(profesores);
+// LOGIN: Crea la sesión
+app.post("/alumnos/:id/session/login", async (req, res) => {
+  try {
+    const alumno = await Alumno.findByPk(req.params.id);[cite: 1]
+    if (!alumno || alumno.password !== req.body.password) {
+      return res.status(400).json({ error: "Credenciales incorrectas" });[cite: 1]
+    }
+
+    const sessionItem = {
+      id: crypto.randomUUID(), // UUID string[cite: 1]
+      fecha: Math.floor(Date.now() / 1000), // Unix timestamp[cite: 1]
+      alumnoId: parseInt(req.params.id),
+      active: true, // true por defecto[cite: 1]
+      sessionString: crypto.randomBytes(64).toString('hex') // 128 dígitos[cite: 1]
+    };
+
+    await dynamo.put({ TableName: "sesiones-alumnos", Item: sessionItem }).promise();[cite: 1]
+    res.status(200).json(sessionItem);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get("/profesores/:id", (req, res) => {
-  const profesor = profesores.find((p) => p.id == req.params.id);
-  if (!profesor)
-    return res.status(404).json({ error: "Profesor no encontrado" });
+// VERIFY: Comprueba si la sesión es válida[cite: 1]
+app.post("/alumnos/:id/session/verify", async (req, res) => {
+  const { sessionString } = req.body;
+  try {
+    const result = await dynamo.scan({
+      TableName: "sesiones-alumnos",
+      FilterExpression: "sessionString = :ss AND active = :act",
+      ExpressionAttributeValues: { ":ss": sessionString, ":act": true }
+    }).promise();[cite: 1]
 
-  res.status(200).json(profesor);
+    if (result.Items.length > 0) {
+      res.status(200).json({ mensaje: "Sesión válida" });[cite: 1]
+    } else {
+      res.status(400).json({ error: "Sesión inválida o expirada" });[cite: 1]
+    }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post("/profesores", (req, res) => {
-  const error = validarProfesor(req.body);
-  if (error) return res.status(400).json({ error });
+// LOGOUT: Pone active en false[cite: 1]
+app.post("/alumnos/:id/session/logout", async (req, res) => {
+  const { sessionString } = req.body;
+  try {
+    const result = await dynamo.scan({
+      TableName: "sesiones-alumnos",
+      FilterExpression: "sessionString = :ss",
+      ExpressionAttributeValues: { ":ss": sessionString }
+    }).promise();[cite: 1]
 
-  const existe = profesores.find((p) => p.id === req.body.id);
-  if (existe) return res.status(400).json({ error: "ID ya existe" });
-
-  profesores.push(req.body);
-  res.status(201).json(req.body);
-});
-
-app.put("/profesores/:id", (req, res) => {
-  const index = profesores.findIndex((p) => p.id == req.params.id);
-  if (index === -1)
-    return res.status(404).json({ error: "Profesor no encontrado" });
-
-  const actualizado = { ...profesores[index], ...req.body };
-
-  const error = validarProfesor(actualizado);
-  if (error) return res.status(400).json({ error });
-
-  profesores[index] = actualizado;
-  res.status(200).json(actualizado);
-});
-
-app.delete("/profesores/:id", (req, res) => {
-  const index = profesores.findIndex((p) => p.id == req.params.id);
-  if (index === -1)
-    return res.status(404).json({ error: "Profesor no encontrado" });
-
-  profesores.splice(index, 1);
-  res.status(200).json({ mensaje: "Profesor eliminado" });
-});
-
-/* =========================
-   CONTROL DE MÉTODOS
-========================= */
-
-app.all("/alumnos", (req, res) => {
-  res.status(405).json({ error: "Método no permitido" });
-});
-
-app.all("/alumnos/:id", (req, res) => {
-  res.status(405).json({ error: "Método no permitido" });
-});
-
-app.all("/profesores", (req, res) => {
-  res.status(405).json({ error: "Método no permitido" });
-});
-
-app.all("/profesores/:id", (req, res) => {
-  res.status(405).json({ error: "Método no permitido" });
-});
-
-/* =========================
-   RUTA NO ENCONTRADA
-========================= */
-
-app.use((req, res) => {
-  res.status(404).json({ error: "Ruta no encontrada" });
+    if (result.Items.length > 0) {
+      const sessionId = result.Items[0].id;
+      await dynamo.update({
+        TableName: "sesiones-alumnos",
+        Key: { id: sessionId },
+        UpdateExpression: "set active = :act",
+        ExpressionAttributeValues: { ":act": false }
+      }).promise();[cite: 1]
+      res.status(200).json({ mensaje: "Sesión cerrada" });[cite: 1]
+    } else {
+      res.status(404).json({ error: "Sesión no encontrada" });
+    }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 /* =========================
    SERVIDOR
 ========================= */
-
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en puerto ${PORT}`);
-});
+app.use((req, res) => { res.status(404).json({ error: "Ruta no encontrada" }); });
+app.listen(PORT, () => { console.log(`Servidor Completo Fase 8 corriendo en puerto ${PORT}`); });
