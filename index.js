@@ -9,7 +9,7 @@ app.use(express.json());
 const PORT = 80;
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Configuración AWS con tus credenciales fresquecitas
+// Tus credenciales actuales de AWS
 AWS.config.update({
   accessKeyId: "ASIAR34N4Q444R36M7DJ",
   secretAccessKey: "pLVetvkffC0Uy0K7fPEDfmPulBU6tsEzedNyCBGB",
@@ -37,7 +37,7 @@ const handleValidation = (err, res) => {
 const methodNotAllowed = (req, res) =>
   res.status(405).json({ error: "Método no permitido" });
 
-/* --- ALUMNOS --- */
+/* --- RUTAS ESTÁNDAR --- */
 app
   .route("/alumnos")
   .get(async (req, res) => res.status(200).json(await Alumno.findAll()))
@@ -48,8 +48,7 @@ app
       handleValidation(err, res);
     }
   })
-  .put(methodNotAllowed)
-  .delete(methodNotAllowed);
+  .all(methodNotAllowed);
 
 app
   .route("/alumnos/:id")
@@ -74,7 +73,6 @@ app
     res.status(200).json({ mensaje: "Eliminado" });
   });
 
-/* --- PROFESORES --- */
 app
   .route("/profesores")
   .get(async (req, res) => res.status(200).json(await Profesor.findAll()))
@@ -85,8 +83,7 @@ app
       handleValidation(err, res);
     }
   })
-  .put(methodNotAllowed)
-  .delete(methodNotAllowed);
+  .all(methodNotAllowed);
 
 app
   .route("/profesores/:id")
@@ -111,9 +108,9 @@ app
     res.status(200).json({ mensaje: "Eliminado" });
   });
 
-/* --- AWS SERVICES (S3, SNS, DYNAMO) --- */
+/* --- AWS SERVICES --- */
 
-// S3: Foto de Perfil
+// Corregido: Agregamos ACL public-read para evitar el 403
 app.post("/alumnos/:id/fotoPerfil", upload.single("foto"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "Falta la foto" });
@@ -121,11 +118,11 @@ app.post("/alumnos/:id/fotoPerfil", upload.single("foto"), async (req, res) => {
     if (!a) return res.status(404).json({ error: "No existe" });
 
     const params = {
-      Bucket: "uady-varguez-fotos-2026", // Verifica que este nombre sea igual al de tu consola
+      Bucket: "uady-varguez-fotos-2026",
       Key: `foto-${a.id}.jpg`,
       Body: req.file.buffer,
       ContentType: req.file.mimetype,
-      // Quitamos ACL: 'public-read' para evitar errores de permisos en AWS Academy
+      ACL: "public-read",
     };
 
     const result = await s3.upload(params).promise();
@@ -136,26 +133,23 @@ app.post("/alumnos/:id/fotoPerfil", upload.single("foto"), async (req, res) => {
   }
 });
 
-// SNS: Email
 app.post("/alumnos/:id/email", async (req, res) => {
   try {
     const a = await Alumno.findByPk(req.params.id);
     if (!a) return res.status(404).json({ error: "No existe" });
-
     await sns
       .publish({
         Message: `Alumno: ${a.nombres}, Promedio: ${a.promedio}`,
-        TopicArn: "arn:aws:sns:us-east-1:128609716025:topic-api", // Verifica este ARN en tu consola SNS
+        TopicArn: "arn:aws:sns:us-east-1:128609716025:topic-api",
       })
       .promise();
-
     res.status(200).json({ mensaje: "Enviado" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// DynamoDB: Sesiones
+// SESIONES: Cambiamos a 400 para fallos de validación/inexistencia
 app.post("/alumnos/:id/session/login", async (req, res) => {
   try {
     const a = await Alumno.findByPk(req.params.id);
@@ -180,21 +174,19 @@ app.post("/alumnos/:id/session/login", async (req, res) => {
 app.post("/alumnos/:id/session/verify", async (req, res) => {
   try {
     const { sessionString } = req.body;
-    if (!sessionString) return res.status(200).json({ active: false }); // Evita el 500 si no mandan string
-
     const result = await dynamo
       .scan({
         TableName: "sesiones-alumnos",
         FilterExpression: "sessionString = :ss AND active = :act",
-        ExpressionAttributeValues: { ":ss": sessionString, ":act": true },
+        ExpressionAttributeValues: { ":ss": sessionString || "", ":act": true },
       })
       .promise();
 
-    // El test parece esperar un 200 siempre, pero validando el contenido
+    // Corregido: Si no hay sesión válida, devolvemos 400 como pide el test
     if (result.Items && result.Items.length > 0) {
-      res.status(200).json({ mensaje: "Válida", active: true });
+      res.status(200).json({ mensaje: "Válida" });
     } else {
-      res.status(200).json({ mensaje: "Inválida", active: false });
+      res.status(400).json({ error: "Sesión inválida" });
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -208,10 +200,11 @@ app.post("/alumnos/:id/session/logout", async (req, res) => {
       .scan({
         TableName: "sesiones-alumnos",
         FilterExpression: "sessionString = :ss",
-        ExpressionAttributeValues: { ":ss": sessionString },
+        ExpressionAttributeValues: { ":ss": sessionString || "" },
       })
       .promise();
 
+    // Corregido: Si la sesión no existe para cerrar, el test espera un 400
     if (result.Items && result.Items.length > 0) {
       await dynamo
         .update({
@@ -223,13 +216,13 @@ app.post("/alumnos/:id/session/logout", async (req, res) => {
         .promise();
       res.status(200).json({ mensaje: "Cerrada" });
     } else {
-      res.status(404).json({ error: "No encontrada" });
+      res.status(400).json({ error: "No encontrada para cerrar" });
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.use((req, res) => res.status(404).json({ error: "Ruta no encontrada" }));
+app.use((req, res) => res.status(404).json({ error: "No encontrado" }));
 
-app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
+app.listen(PORT, () => console.log("Servidor Final Corriendo"));
